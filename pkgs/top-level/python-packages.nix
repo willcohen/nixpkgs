@@ -10771,6 +10771,8 @@ in {
   };
 
   wxPython_4_1 = callPackage ../development/python-modules/wxPython/4.1.nix {
+    inherit (pkgs.darwin.apple_sdk.frameworks)
+      AudioToolbox AVFoundation AVKit Carbon Cocoa CoreFoundation IOKit Kernel OpenGL WebKit;
     wxGTK = pkgs.wxGTK31.override {
       withGtk2 = false;
       withWebKit = true;

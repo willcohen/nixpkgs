@@ -24,6 +24,16 @@
 , libglvnd
 , mesa
 , webkitgtk
+, AudioToolbox
+, AVFoundation
+, AVKit
+, Carbon
+, Cocoa
+, CoreFoundation
+, IOKit
+, Kernel
+, OpenGL
+, WebKit
 , autoPatchelfHook
 }:
 let
@@ -46,13 +56,24 @@ buildPythonPackage rec {
   nativeBuildInputs = [
     which
     doxygen
-    wxGTK.gtk
     pkg-config
     autoPatchelfHook
+  ] ++ lib.optionals stdenv.isDarwin [
+    AudioToolbox
+    AVFoundation
+    AVKit
+    Carbon
+    Cocoa
+    CoreFoundation
+    IOKit
+    Kernel
+    OpenGL
+    WebKit
+  ] ++ lib.optionals stdenv.isLinux [
+    wxGTK.gtk
   ];
 
   buildInputs = [
-    wxGTK.gtk
     ncurses
     libXinerama
     libSM
@@ -65,6 +86,19 @@ buildPythonPackage rec {
     libGL
     libglvnd
     mesa
+  ] ++ lib.optionals stdenv.isDarwin [
+    AudioToolbox
+    AVFoundation
+    AVKit
+    Carbon
+    Cocoa
+    CoreFoundation
+    IOKit
+    Kernel
+    OpenGL
+    WebKit
+  ] ++ lib.optionals stdenv.isLinux [
+    wxGTK.gtk
     webkitgtk
   ];
 
