@@ -41,11 +41,11 @@ stdenv.mkDerivation rec {
     + lib.optionalString xenSupport "-xen"
     + lib.optionalString hostCpuOnly "-host-cpu-only"
     + lib.optionalString nixosTestRunner "-for-vm-tests";
-  version = "7.0.0-rc1";
+  version = "7.0.0-rc2";
 
   src = fetchurl {
     url= "https://download.qemu.org/qemu-${version}.tar.xz";
-    sha256 = "1br1lhhqq7fl66n6580jncn7zmrjqz6bhgg2ckkm8d0mbbpm75hm";
+    sha256 = "sha256-5HpylZiQBaKb/HDmBKXhiCqiKmAcrsLmX0RGOtqeTLg=";
   };
 
   depsBuildBuild = [ buildPackages.stdenv.cc ];
@@ -89,17 +89,20 @@ stdenv.mkDerivation rec {
 
   patches = [
     ./fix-qemu-ga.patch
-    # Cocoa clipboard support only works on macOS 10.14+
-    # (fetchpatch {
-    #   url = "https://gitlab.com/qemu-project/qemu/-/commit/7e3e20d89129614f4a7b2451fe321cc6ccca3b76.diff";
-    #   sha256 = "09xz06g57wxbacic617pq9c0qb7nly42gif0raplldn5lw964xl2";
-    #   revert = true;
-    # })
+
     # QEMU upstream does not demand compatibility to pre-10.13, so 9p-darwin
     # support on nix requires utimensat fallback. The patch adding this fallback
     # set was removed during the process of upstreaming this functionality, and
     # will still be needed in nix until the macOS SDK reaches 10.13+.
     ./provide-fallback-for-utimensat.patch
+    # Cocoa clipboard support only works on macOS 10.14+
+    ./revert-ui-cocoa-add-clipboard-support.patch
+    # Standard about panel requires AppKit and macOS 10.13+
+    (fetchpatch {
+      url = "https://gitlab.com/qemu-project/qemu/-/commit/99eb313ddbbcf73c1adcdadceba1423b691c6d05.diff";
+      sha256 = "sha256-gTRf9XENAfbFB3asYCXnw4OV4Af6VE1W56K2xpYDhgM=";
+      revert = true;
+    })
   ]
     ++ lib.optional nixosTestRunner ./force-uid0-on-9p.patch;
 
