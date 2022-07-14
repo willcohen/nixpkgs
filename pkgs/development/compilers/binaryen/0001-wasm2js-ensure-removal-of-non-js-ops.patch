@@ -1,0 +1,27 @@
+From d906603fbcfe389c701c8da73ace1d51f6b60b1a Mon Sep 17 00:00:00 2001
+From: Will Cohen <willcohen@users.noreply.github.com>
+Date: Thu, 14 Jul 2022 19:31:26 -0400
+Subject: [PATCH] [wasm2js] ensure removal of non-js-ops
+
+---
+ src/wasm2js.h | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/src/wasm2js.h b/src/wasm2js.h
+index 7762f525a..d255af1cd 100644
+--- a/src/wasm2js.h
++++ b/src/wasm2js.h
+@@ -369,6 +369,10 @@ Ref Wasm2JSBuilder::processWasm(Module* wasm, Name funcName) {
+       runner.addDefaultOptimizationPasses();
+       runner.add("avoid-reinterprets");
+     }
++    runner.add("remove-non-js-ops");
++    runner.add("flatten");
++    runner.add("i64-to-i32-lowering");
++    runner.add("alignment-lowering");
+     // Finally, get the code into the flat form we need for wasm2js itself, and
+     // optimize that a little in a way that keeps that property.
+     runner.add("flatten");
+-- 
+2.36.0
+
