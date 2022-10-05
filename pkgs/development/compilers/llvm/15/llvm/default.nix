@@ -58,7 +58,11 @@ in stdenv.mkDerivation (rec {
 
   propagatedBuildInputs = [ ncurses zlib ];
 
-  checkInputs = [ which ];
+  checkInputs = [
+    which
+    python3.pkgs.psutil # !!! lit still doesn't seem to find this; leads to some
+                        # tests being skipped
+  ];
 
   patches = [
     ./gnu-install-dirs.patch
