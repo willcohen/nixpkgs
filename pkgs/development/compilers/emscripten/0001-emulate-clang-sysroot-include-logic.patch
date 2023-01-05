@@ -1,4 +1,4 @@
-From 67f54fde2b1683aae3800f7a86a4e507c1125be8 Mon Sep 17 00:00:00 2001
+From 0cc570e648943abd6757b96f0e8532157d27ba8b Mon Sep 17 00:00:00 2001
 From: Yureka <yuka@yuka.dev>
 Date: Sat, 7 Aug 2021 09:16:46 +0200
 Subject: [PATCH] emulate clang 'sysroot + /include' logic
@@ -20,23 +20,47 @@ but it doesn't appear to work
  1 file changed, 6 insertions(+), 1 deletion(-)
 
 diff --git a/emcc.py b/emcc.py
-index 999314afc..0e23c066c 100755
+index 47a637fb7..61278f0bd 100755
 --- a/emcc.py
 +++ b/emcc.py
-@@ -759,7 +759,12 @@ def emsdk_ldflags(user_args):
+@@ -871,31 +871,36 @@ def parse_s_args(args):
+         # #if MIN_FIREFOX_VERSION < 68
+         if re.match(r'MIN_.*_VERSION(=.*)?', key):
+           try:
+             if int(key.split('=')[1]) < 0:
+               key = key.split('=')[0] + '=0x7FFFFFFF'
+           except Exception:
+             pass
+ 
+         settings_changes.append(key)
+ 
+   newargs = [a for a in args if a]
+   return (settings_changes, newargs)
  
  
  def emsdk_cflags(user_args):
--  cflags = ['--sysroot=' + shared.Cache.get_sysroot(absolute=True)]
+-  cflags = ['--sysroot=' + cache.get_sysroot(absolute=True)]
 +  cflags = [
-+    '--sysroot=' + shared.Cache.get_sysroot(absolute=True),
++    '--sysroot=' + cache.get_sysroot(absolute=True),
 +    '-resource-dir=@resourceDir@',
-+    '-idirafter' + shared.Cache.get_sysroot(absolute=True) + os.path.join('/include'),
++    '-idirafter' + cache.get_sysroot(absolute=True) + os.path.join('/include'),
 +    '-iwithsysroot' + os.path.join('/include','c++','v1')
 +  ]
  
    def array_contains_any_of(hay, needles):
      for n in needles:
+       if n in hay:
+         return True
+ 
+   if array_contains_any_of(user_args, SIMD_INTEL_FEATURE_TOWER) or array_contains_any_of(user_args, SIMD_NEON_FLAGS):
+     if '-msimd128' not in user_args and '-mrelaxed-simd' not in user_args:
+       exit_with_error('Passing any of ' + ', '.join(SIMD_INTEL_FEATURE_TOWER + SIMD_NEON_FLAGS) + ' flags also requires passing -msimd128 (or -mrelaxed-simd)!')
+     cflags += ['-D__SSE__=1']
+ 
+   if array_contains_any_of(user_args, SIMD_INTEL_FEATURE_TOWER[1:]):
+     cflags += ['-D__SSE2__=1']
+ 
+   if array_contains_any_of(user_args, SIMD_INTEL_FEATURE_TOWER[2:]):
 -- 
-2.32.0
+2.38.1
 

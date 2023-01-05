@@ -8,7 +8,7 @@
 
 stdenv.mkDerivation rec {
   pname = "emscripten";
-  version = "3.1.24";
+  version = "3.1.29";
 
   llvmEnv = symlinkJoin {
     name = "emscripten-llvm-${version}";
@@ -19,7 +19,7 @@ stdenv.mkDerivation rec {
     name = "emscripten-node-modules-${version}";
     inherit pname version src;
 
-    npmDepsHash = "sha256-ejuHR2BpAUStWjuvQuGE6ko4byF4GBl6FJBshxlknQk=";
+    npmDepsHash = "sha256-JjrsKZP4fee8ePr/sDflYQcF/cDBfeVbeSDGLhMRWsQ=";
 
     # Do not build.
     buildPhase = ''
@@ -35,7 +35,7 @@ stdenv.mkDerivation rec {
   src = fetchFromGitHub {
     owner = "emscripten-core";
     repo = "emscripten";
-    sha256 = "sha256-1jW6ThxK6dThOO90l4Mc5yehVF3tI4HWipBWZAOztrk=";
+    sha256 = "sha256-XlhSPNZAwFrvmfsHTYqoy8WHVSZ1siTk/kICmZF+YBM=";
     rev = version;
   };
 
@@ -48,15 +48,15 @@ stdenv.mkDerivation rec {
       resourceDir = "${llvmEnv}/lib/clang/${llvmPackages.release_version}/";
     })
     # https://github.com/emscripten-core/emscripten/pull/18219
-    (fetchpatch {
-      url = "https://github.com/emscripten-core/emscripten/commit/afbc14950f021513c59cbeaced8807ef8253530a.patch";
-      sha256 = "sha256-+gJNTQJng9rWcGN3GAcMBB0YopKPnRp/r8CN9RSTClU=";
-    })
+    # (fetchpatch {
+    #   url = "https://github.com/emscripten-core/emscripten/commit/afbc14950f021513c59cbeaced8807ef8253530a.patch";
+    #   sha256 = "sha256-+gJNTQJng9rWcGN3GAcMBB0YopKPnRp/r8CN9RSTClU=";
+    # })
     # https://github.com/emscripten-core/emscripten/pull/18220
-    (fetchpatch {
-      url = "https://github.com/emscripten-core/emscripten/commit/852982318f9fb692ba1dd1173f62e1eb21ae61ca.patch";
-      sha256 = "sha256-hmIOtpRx3PD3sDAahUcreSydydqcdSqArYvyLGgUgd8=";
-    })
+    # (fetchpatch {
+    #   url = "https://github.com/emscripten-core/emscripten/commit/852982318f9fb692ba1dd1173f62e1eb21ae61ca.patch";
+    #   sha256 = "sha256-hmIOtpRx3PD3sDAahUcreSydydqcdSqArYvyLGgUgd8=";
+    # })
   ];
 
   buildPhase = ''
@@ -111,10 +111,10 @@ stdenv.mkDerivation rec {
 
     # precompile libc (etc.) in all variants:
     pushd $TMPDIR
-    echo 'int __main_argc_argv() { return 42; }' >test.c
+    echo 'int __main_argc_argv( int i , int j ) { return 42; }' >test.c
     for LTO in -flto ""; do
       # wasm2c doesn't work with PIC
-      $out/bin/emcc -s WASM2C -s STANDALONE_WASM $LTO test.c
+      $out/bin/emcc -s WASM2C -s STANDALONE_WASM -s LLD_REPORT_UNDEFINED=0 $LTO test.c
 
       for BIND in "" "--bind"; do
         for MT in "" "-s USE_PTHREADS"; do
