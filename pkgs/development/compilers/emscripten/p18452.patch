@@ -1,0 +1,106 @@
+From a6e8d85e2a70aac8dfaa9e96e92491d4e350736e Mon Sep 17 00:00:00 2001
+From: Sam Clegg <sbc@chromium.org>
+Date: Wed, 4 Jan 2023 15:50:51 -0800
+Subject: [PATCH] Minor simplification in runtime_init_memory.js. NFC (#18452)
+
+As a side effect this also fixes the same issue as #17842.
+---
+ src/preamble.js                                        |  8 --------
+ src/preamble_minimal.js                                | 10 +++++++---
+ src/runtime_init_memory.js                             |  6 +-----
+ .../other/metadce/test_metadce_minimal_pthreads.jssize |  2 +-
+ test/test_browser.py                                   |  3 ++-
+ 5 files changed, 11 insertions(+), 18 deletions(-)
+
+diff --git a/src/preamble.js b/src/preamble.js
+index 001e9b596c6..d84bf085cf6 100644
+--- a/src/preamble.js
++++ b/src/preamble.js
+@@ -138,14 +138,6 @@ var HEAP,
+ var HEAP_DATA_VIEW;
+ #endif
+ 
+-#if USE_PTHREADS
+-if (ENVIRONMENT_IS_PTHREAD) {
+-  // Grab imports from the pthread to local scope.
+-  buffer = Module['buffer'];
+-  // Note that not all runtime fields are imported above
+-}
+-#endif
+-
+ function updateGlobalBufferAndViews(buf) {
+   buffer = buf;
+ #if SUPPORT_BIG_ENDIAN
+diff --git a/src/preamble_minimal.js b/src/preamble_minimal.js
+index 90a07bb0f76..c62449dc785 100644
+--- a/src/preamble_minimal.js
++++ b/src/preamble_minimal.js
+@@ -96,12 +96,16 @@ if (!ENVIRONMENT_IS_PTHREAD) {
+     , 'shared': true
+ #endif
+     });
+-  updateGlobalBufferAndViews(wasmMemory.buffer);
+ #if USE_PTHREADS
+-} else {
+-  updateGlobalBufferAndViews({{{ MODULARIZE ? 'Module.buffer' : 'wasmMemory.buffer' }}});
+ }
++#if MODULARIZE
++else {
++  wasmMemory = Module['wasmMemory'];
++}
++#endif // MODULARIZE
+ #endif // USE_PTHREADS
++
++updateGlobalBufferAndViews(wasmMemory.buffer);
+ #endif // IMPORTED_MEMORY
+ 
+ #include "runtime_stack_check.js"
+diff --git a/src/runtime_init_memory.js b/src/runtime_init_memory.js
+index aac257f9cf8..d10548acafa 100644
+--- a/src/runtime_init_memory.js
++++ b/src/runtime_init_memory.js
+@@ -12,7 +12,6 @@
+ #if USE_PTHREADS
+ if (ENVIRONMENT_IS_PTHREAD) {
+   wasmMemory = Module['wasmMemory'];
+-  buffer = Module['buffer'];
+ } else {
+ #endif // USE_PTHREADS
+ 
+@@ -54,9 +53,7 @@ if (ENVIRONMENT_IS_PTHREAD) {
+ }
+ #endif
+ 
+-if (wasmMemory) {
+-  buffer = wasmMemory.buffer;
+-}
++updateGlobalBufferAndViews(wasmMemory.buffer);
+ 
+ // If the user provides an incorrect length, just use that length instead rather than providing the user to
+ // specifically provide the memory length with Module['INITIAL_MEMORY'].
+@@ -64,4 +61,3 @@ INITIAL_MEMORY = buffer.byteLength;
+ #if ASSERTIONS
+ assert(INITIAL_MEMORY % {{{ WASM_PAGE_SIZE }}} === 0);
+ #endif
+-updateGlobalBufferAndViews(buffer);
+diff --git a/test/other/metadce/test_metadce_minimal_pthreads.jssize b/test/other/metadce/test_metadce_minimal_pthreads.jssize
+index 249cca04235..cee9474ed9a 100644
+--- a/test/other/metadce/test_metadce_minimal_pthreads.jssize
++++ b/test/other/metadce/test_metadce_minimal_pthreads.jssize
+@@ -1 +1 @@
+-15782
++16057
+diff --git a/test/test_browser.py b/test/test_browser.py
+index 02d295228c1..85c9c40f3f9 100644
+--- a/test/test_browser.py
++++ b/test/test_browser.py
+@@ -4781,7 +4781,8 @@ def test_pthread_growth_mainthread(self, emcc_args):
+   @parameterized({
+     '': ([],),
+     'assert': (['-sASSERTIONS'],),
+-    'proxy': (['-sPROXY_TO_PTHREAD'],)
++    'proxy': (['-sPROXY_TO_PTHREAD'],),
++    'minimal': (['-sMINIMAL_RUNTIME', '-sMODULARIZE', '-sEXPORT_NAME=MyModule'],),
+   })
+   @requires_threads
+   def test_pthread_growth(self, emcc_args):

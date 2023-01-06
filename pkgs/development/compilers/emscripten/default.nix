@@ -47,16 +47,31 @@ stdenv.mkDerivation rec {
       src = ./0001-emulate-clang-sysroot-include-logic.patch;
       resourceDir = "${llvmEnv}/lib/clang/${llvmPackages.release_version}/";
     })
-    # https://github.com/emscripten-core/emscripten/pull/18219
+    # https://github.com/emscripten-core/emscripten/pull/18070 (3.1.25+)
+    (fetchpatch {
+      url = "https://github.com/emscripten-core/emscripten/commit/3958ea89c40534747ee15216d4513744cc51ce65.patch";
+      sha256 = "sha256-yJxKa1O/csIGN4rnu4jIBc0q+cdhAWiKTB8Ce9QhKcI=";
+    })
+    # https://github.com/emscripten-core/emscripten/pull/18219 (3.1.27+)
     (fetchpatch {
       url = "https://github.com/emscripten-core/emscripten/commit/afbc14950f021513c59cbeaced8807ef8253530a.patch";
       sha256 = "sha256-+gJNTQJng9rWcGN3GAcMBB0YopKPnRp/r8CN9RSTClU=";
     })
-    # https://github.com/emscripten-core/emscripten/pull/18220
+    # https://github.com/emscripten-core/emscripten/pull/18220 (3.1.27+)
     (fetchpatch {
       url = "https://github.com/emscripten-core/emscripten/commit/852982318f9fb692ba1dd1173f62e1eb21ae61ca.patch";
       sha256 = "sha256-hmIOtpRx3PD3sDAahUcreSydydqcdSqArYvyLGgUgd8=";
     })
+    # https://github.com/emscripten-core/emscripten/pull/18448 (3.1.30+)
+    (fetchpatch {
+      url = "https://github.com/emscripten-core/emscripten/commit/e448765d2eb19f50ba44c0ac2b6d831c8781db69.patch";
+      sha256 = "sha256-5dLc7J5c4nG0Y7/hYKWMYavYQn0IuR8MxwFh7aXQMkc=";
+    })
+    # https://github.com/emscripten-core/emscripten/pull/18452 (3.1.30+)
+    ./p18452.patch
+    # https://github.com/emscripten-core/emscripten/pull/18454 (3.1.30+)
+    # need to fix the expected sizes for tests to work
+    ./p18454.patch
   ];
 
   buildPhase = ''

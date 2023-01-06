@@ -1,0 +1,335 @@
+From 72f5fb17c564cc354c865abf44cc2b4c724087d7 Mon Sep 17 00:00:00 2001
+From: Sam Clegg <sbc@chromium.org>
+Date: Thu, 5 Jan 2023 11:00:59 -0800
+Subject: [PATCH] Remove undeeded `buffer` global (#18454)
+
+If this is needed it can always be found via HEAPXX, or wasmMemory.
+
+Also, introduce a new debug helper called `missingGlobal` which allows
+use to remove builtin global symbols while notifying any folks that
+are depending on them.
+---
+ src/embind/embind.js                          |  2 +-
+ src/growableHeap.js                           | 32 +++++++++----------
+ src/library.js                                | 13 ++++----
+ src/library_memfs.js                          |  6 ++--
+ src/postamble_minimal.js                      |  2 +-
+ src/preamble.js                               | 32 +++++++++----------
+ src/preamble_minimal.js                       |  8 ++---
+ src/runtime_debug.js                          | 12 +++++++
+ src/runtime_init_memory.js                    |  4 +--
+ test/core/test_module_wasm_memory.c           |  2 +-
+ test/wasm_worker/shared_memory.c              |  2 +-
+ 20 files changed, 74 insertions(+), 60 deletions(-)
+
+diff --git a/src/embind/embind.js b/src/embind/embind.js
+index a8339ed9893..badff676e63 100644
+--- a/src/embind/embind.js
++++ b/src/embind/embind.js
+@@ -906,7 +906,7 @@ var LibraryEmbind = {
+       var heap = HEAPU32;
+       var size = heap[handle]; // in elements
+       var data = heap[handle + 1]; // byte offset into emscripten heap
+-      return new TA(buffer, data, size);
++      return new TA(heap.buffer, data, size);
+     }
+ 
+     name = readLatin1String(name);
+diff --git a/src/growableHeap.js b/src/growableHeap.js
+index 81beea29666..6169ab5909e 100644
+--- a/src/growableHeap.js
++++ b/src/growableHeap.js
+@@ -7,50 +7,50 @@
+ // Support for growable heap + pthreads, where the buffer may change, so JS views
+ // must be updated.
+ function GROWABLE_HEAP_I8() {
+-  if (wasmMemory.buffer != buffer) {
+-    updateGlobalBufferAndViews(wasmMemory.buffer);
++  if (wasmMemory.buffer != HEAP8.buffer) {
++    updateMemoryViews();
+   }
+   return HEAP8;
+ }
+ function GROWABLE_HEAP_U8() {
+-  if (wasmMemory.buffer != buffer) {
+-    updateGlobalBufferAndViews(wasmMemory.buffer);
++  if (wasmMemory.buffer != HEAP8.buffer) {
++    updateMemoryViews();
+   }
+   return HEAPU8;
+ }
+ function GROWABLE_HEAP_I16() {
+-  if (wasmMemory.buffer != buffer) {
+-    updateGlobalBufferAndViews(wasmMemory.buffer);
++  if (wasmMemory.buffer != HEAP8.buffer) {
++    updateMemoryViews();
+   }
+   return HEAP16;
+ }
+ function GROWABLE_HEAP_U16() {
+-  if (wasmMemory.buffer != buffer) {
+-    updateGlobalBufferAndViews(wasmMemory.buffer);
++  if (wasmMemory.buffer != HEAP8.buffer) {
++    updateMemoryViews();
+   }
+   return HEAPU16;
+ }
+ function GROWABLE_HEAP_I32() {
+-  if (wasmMemory.buffer != buffer) {
+-    updateGlobalBufferAndViews(wasmMemory.buffer);
++  if (wasmMemory.buffer != HEAP8.buffer) {
++    updateMemoryViews();
+   }
+   return HEAP32;
+ }
+ function GROWABLE_HEAP_U32() {
+-  if (wasmMemory.buffer != buffer) {
+-    updateGlobalBufferAndViews(wasmMemory.buffer);
++  if (wasmMemory.buffer != HEAP8.buffer) {
++    updateMemoryViews();
+   }
+   return HEAPU32;
+ }
+ function GROWABLE_HEAP_F32() {
+-  if (wasmMemory.buffer != buffer) {
+-    updateGlobalBufferAndViews(wasmMemory.buffer);
++  if (wasmMemory.buffer != HEAP8.buffer) {
++    updateMemoryViews();
+   }
+   return HEAPF32;
+ }
+ function GROWABLE_HEAP_F64() {
+-  if (wasmMemory.buffer != buffer) {
+-    updateGlobalBufferAndViews(wasmMemory.buffer);
++  if (wasmMemory.buffer != HEAP8.buffer) {
++    updateMemoryViews();
+   }
+   return HEAPF64;
+ }
+diff --git a/src/library.js b/src/library.js
+index ae2e33e9c50..611ff5d6882 100644
+--- a/src/library.js
++++ b/src/library.js
+@@ -172,22 +172,23 @@ mergeInto(LibraryManager.library, {
+   // Grows the wasm memory to the given byte size, and updates the JS views to
+   // it. Returns 1 on success, 0 on error.
+   $emscripten_realloc_buffer: function(size) {
++    var b = wasmMemory.buffer;
+ #if MEMORYPROFILER
+-    var oldHeapSize = buffer.byteLength;
++    var oldHeapSize = b.byteLength;
+ #endif
+     try {
+       // round size grow request up to wasm page size (fixed 64KB per spec)
+-      wasmMemory.grow((size - buffer.byteLength + 65535) >>> 16); // .grow() takes a delta compared to the previous size
+-      updateGlobalBufferAndViews(wasmMemory.buffer);
++      wasmMemory.grow((size - b.byteLength + 65535) >>> 16); // .grow() takes a delta compared to the previous size
++      updateMemoryViews();
+ #if MEMORYPROFILER
+       if (typeof emscriptenMemoryProfiler != 'undefined') {
+-        emscriptenMemoryProfiler.onMemoryResize(oldHeapSize, buffer.byteLength);
++        emscriptenMemoryProfiler.onMemoryResize(oldHeapSize, b.byteLength);
+       }
+ #endif
+       return 1 /*success*/;
+     } catch(e) {
+ #if ASSERTIONS
+-      err('emscripten_realloc_buffer: Attempted to grow heap from ' + buffer.byteLength  + ' bytes to ' + size + ' bytes, but got error: ' + e);
++      err('emscripten_realloc_buffer: Attempted to grow heap from ' + b.byteLength  + ' bytes to ' + size + ' bytes, but got error: ' + e);
+ #endif
+     }
+     // implicit 0 return to save code size (caller will cast "undefined" into 0
+@@ -324,7 +325,7 @@ mergeInto(LibraryManager.library, {
+ #if ASSERTIONS
+     assert(memoryIndex == 0);
+ #endif
+-    updateGlobalBufferAndViews(wasmMemory.buffer);
++    updateMemoryViews();
+   },
+ 
+   system__deps: ['$setErrNo'],
+diff --git a/src/library_memfs.js b/src/library_memfs.js
+index 5d3cac9a69e..b009ee74e73 100644
+--- a/src/library_memfs.js
++++ b/src/library_memfs.js
+@@ -341,9 +341,9 @@ mergeInto(LibraryManager.library, {
+         var allocated;
+         var contents = stream.node.contents;
+         // Only make a new copy when MAP_PRIVATE is specified.
+-        if (!(flags & {{{ cDefine('MAP_PRIVATE') }}}) && contents.buffer === buffer) {
+-          // We can't emulate MAP_SHARED when the file is not backed by the buffer
+-          // we're mapping to (e.g. the HEAP buffer).
++        if (!(flags & {{{ cDefine('MAP_PRIVATE') }}}) && contents.buffer === HEAP8.buffer) {
++          // We can't emulate MAP_SHARED when the file is not backed by the
++          // buffer we're mapping to (e.g. the HEAP buffer).
+           allocated = false;
+           ptr = contents.byteOffset;
+         } else {
+diff --git a/src/postamble_minimal.js b/src/postamble_minimal.js
+index 8e526604cec..4a65ae81929 100644
+--- a/src/postamble_minimal.js
++++ b/src/postamble_minimal.js
+@@ -206,7 +206,7 @@ WebAssembly.instantiate(Module['wasm'], imports).then(function(output) {
+   assert(wasmMemory);
+   assert(wasmMemory.buffer.byteLength === {{{ INITIAL_MEMORY }}});
+ #endif
+-  updateGlobalBufferAndViews(wasmMemory.buffer);
++  updateMemoryViews();
+ #endif
+ 
+ #if MEM_INIT_METHOD == 1 && !MEM_INIT_IN_WASM && !SINGLE_FILE
+diff --git a/src/preamble.js b/src/preamble.js
+index d84bf085cf6..f51be39cc25 100644
+--- a/src/preamble.js
++++ b/src/preamble.js
+@@ -107,8 +107,6 @@ function _free() {
+ // Memory management
+ 
+ var HEAP,
+-/** @type {!ArrayBuffer} */
+-  buffer,
+ /** @type {!Int8Array} */
+   HEAP8,
+ /** @type {!Uint8Array} */
+@@ -138,22 +136,22 @@ var HEAP,
+ var HEAP_DATA_VIEW;
+ #endif
+ 
+-function updateGlobalBufferAndViews(buf) {
+-  buffer = buf;
++function updateMemoryViews() {
++  var b = wasmMemory.buffer;
+ #if SUPPORT_BIG_ENDIAN
+-  Module['HEAP_DATA_VIEW'] = HEAP_DATA_VIEW = new DataView(buf);
+-#endif
+-  Module['HEAP8'] = HEAP8 = new Int8Array(buf);
+-  Module['HEAP16'] = HEAP16 = new Int16Array(buf);
+-  Module['HEAP32'] = HEAP32 = new Int32Array(buf);
+-  Module['HEAPU8'] = HEAPU8 = new Uint8Array(buf);
+-  Module['HEAPU16'] = HEAPU16 = new Uint16Array(buf);
+-  Module['HEAPU32'] = HEAPU32 = new Uint32Array(buf);
+-  Module['HEAPF32'] = HEAPF32 = new Float32Array(buf);
+-  Module['HEAPF64'] = HEAPF64 = new Float64Array(buf);
++  Module['HEAP_DATA_VIEW'] = HEAP_DATA_VIEW = new DataView(b);
++#endif
++  Module['HEAP8'] = HEAP8 = new Int8Array(b);
++  Module['HEAP16'] = HEAP16 = new Int16Array(b);
++  Module['HEAP32'] = HEAP32 = new Int32Array(b);
++  Module['HEAPU8'] = HEAPU8 = new Uint8Array(b);
++  Module['HEAPU16'] = HEAPU16 = new Uint16Array(b);
++  Module['HEAPU32'] = HEAPU32 = new Uint32Array(b);
++  Module['HEAPF32'] = HEAPF32 = new Float32Array(b);
++  Module['HEAPF64'] = HEAPF64 = new Float64Array(b);
+ #if WASM_BIGINT
+-  Module['HEAP64'] = HEAP64 = new BigInt64Array(buf);
+-  Module['HEAPU64'] = HEAPU64 = new BigUint64Array(buf);
++  Module['HEAP64'] = HEAP64 = new BigInt64Array(b);
++  Module['HEAPU64'] = HEAPU64 = new BigUint64Array(b);
+ #endif
+ }
+ 
+@@ -882,7 +880,7 @@ function createWasm() {
+     // TODO(sbc): Read INITIAL_MEMORY out of the wasm file in post-link mode.
+     //assert(wasmMemory.buffer.byteLength === {{{ INITIAL_MEMORY }}});
+ #endif
+-    updateGlobalBufferAndViews(wasmMemory.buffer);
++    updateMemoryViews();
+ #endif
+ #if !MEM_INIT_IN_WASM
+     runMemoryInitializer();
+diff --git a/src/preamble_minimal.js b/src/preamble_minimal.js
+index c62449dc785..2f32865d930 100644
+--- a/src/preamble_minimal.js
++++ b/src/preamble_minimal.js
+@@ -54,14 +54,14 @@ var HEAP8, HEAP16, HEAP32, HEAPU8, HEAPU16, HEAPU32, HEAPF32, HEAPF64,
+ #if SUPPORT_BIG_ENDIAN
+   HEAP_DATA_VIEW,
+ #endif
+-  wasmMemory, buffer, wasmTable;
++  wasmMemory, wasmTable;
+ 
+ 
+-function updateGlobalBufferAndViews(b) {
++function updateMemoryViews() {
++  var b = wasmMemory.buffer;
+ #if ASSERTIONS && SHARED_MEMORY
+   assert(b instanceof SharedArrayBuffer, 'requested a shared WebAssembly.Memory but the returned buffer is not a SharedArrayBuffer, indicating that while the browser has SharedArrayBuffer it does not have WebAssembly threads support - you may need to set a flag');
+ #endif
+-  buffer = b;
+ #if SUPPORT_BIG_ENDIAN
+   HEAP_DATA_VIEW = new DataView(b);
+ #endif
+@@ -105,7 +105,7 @@ else {
+ #endif // MODULARIZE
+ #endif // USE_PTHREADS
+ 
+-updateGlobalBufferAndViews(wasmMemory.buffer);
++updateMemoryViews();
+ #endif // IMPORTED_MEMORY
+ 
+ #include "runtime_stack_check.js"
+diff --git a/src/runtime_debug.js b/src/runtime_debug.js
+index e00c2c1f3c0..182fb891f64 100644
+--- a/src/runtime_debug.js
++++ b/src/runtime_debug.js
+@@ -38,6 +38,18 @@ function isExportedByForceFilesystem(name) {
+          name === 'removeRunDependency';
+ }
+ 
++function missingGlobal(sym, msg) {
++  Object.defineProperty(globalThis, sym, {
++    configurable: true,
++    get: function() {
++      warnOnce('`' + sym + '` is not longer defined by emscripten. ' + msg);
++      return undefined;
++    }
++  });
++}
++
++missingGlobal('buffer', 'Please use HEAP8.buffer or wasmMemory.buffer');
++
+ function missingLibrarySymbol(sym) {
+   if (typeof globalThis !== 'undefined' && !Object.getOwnPropertyDescriptor(globalThis, sym)) {
+     Object.defineProperty(globalThis, sym, {
+diff --git a/src/runtime_init_memory.js b/src/runtime_init_memory.js
+index d10548acafa..d3d6cb3061f 100644
+--- a/src/runtime_init_memory.js
++++ b/src/runtime_init_memory.js
+@@ -53,11 +53,11 @@ if (ENVIRONMENT_IS_PTHREAD) {
+ }
+ #endif
+ 
+-updateGlobalBufferAndViews(wasmMemory.buffer);
++updateMemoryViews();
+ 
+ // If the user provides an incorrect length, just use that length instead rather than providing the user to
+ // specifically provide the memory length with Module['INITIAL_MEMORY'].
+-INITIAL_MEMORY = buffer.byteLength;
++INITIAL_MEMORY = wasmMemory.buffer.byteLength;
+ #if ASSERTIONS
+ assert(INITIAL_MEMORY % {{{ WASM_PAGE_SIZE }}} === 0);
+ #endif
+diff --git a/test/core/test_module_wasm_memory.c b/test/core/test_module_wasm_memory.c
+index bb6fcea6a53..48ea957a31d 100644
+--- a/test/core/test_module_wasm_memory.c
++++ b/test/core/test_module_wasm_memory.c
+@@ -11,7 +11,7 @@
+ 
+ int main() {
+   assert(EM_ASM_INT({
+-    return Module['wasmMemory'] === wasmMemory && wasmMemory.buffer === buffer;
++    return Module['wasmMemory'] === wasmMemory && wasmMemory.buffer === HEAP8.buffer;
+   }));
+   puts("success");
+ }
+diff --git a/test/wasm_worker/shared_memory.c b/test/wasm_worker/shared_memory.c
+index 907e2766a25..cf9e5cf56d5 100644
+--- a/test/wasm_worker/shared_memory.c
++++ b/test/wasm_worker/shared_memory.c
+@@ -3,5 +3,5 @@
+ 
+ int main()
+ {
+-	printf("%d\n", EM_ASM_INT(return buffer instanceof SharedArrayBuffer));
++	printf("%d\n", EM_ASM_INT(return wasmMemory.buffer instanceof SharedArrayBuffer));
+ }
