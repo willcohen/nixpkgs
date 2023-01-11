@@ -1,10 +1,19 @@
-{ lib, makeWrapper, symlinkJoin
+{ lib
+, makeWrapper
+, symlinkJoin
 , extraPythonPackages ? (ps: [ ])
+, darwin
 , libsForQt5
 }:
+
 with lib;
+
 let
-  qgis-ltr-unwrapped = libsForQt5.callPackage ./unwrapped-ltr.nix {  };
+
+  qgis-ltr-unwrapped = libsForQt5.callPackage ./unwrapped-ltr.nix {
+    inherit (darwin.apple_sdk.libs) utmp;
+  };
+
 in symlinkJoin rec {
 
   inherit (qgis-ltr-unwrapped) version;
