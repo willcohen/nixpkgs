@@ -31,7 +31,7 @@ let
       stdenv.override {
         cc = stdenv.cc.override {
           nixSupport = stdenv.cc.nixSupport // {
-            cc-cflags = lib.remove "-lunwind" stdenv.cc.nixSupport.cc-cflags;
+            cc-cflags = lib.remove "-lunwind" (stdenv.cc.nixSupport.cc-cflags or [ ]);
           };
         };
       }
