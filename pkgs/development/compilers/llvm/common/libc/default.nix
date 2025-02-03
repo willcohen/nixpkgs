@@ -58,8 +58,8 @@ stdenv'.mkDerivation (finalAttrs: {
   outputs = [ "out" ] ++ (lib.optional isFullBuild "dev");
 
   postUnpack = lib.optionalString isFullBuild ''
-    patchShebangs $sourceRoot/../$pname/hdrgen/yaml_to_classes.py
-    chmod +x $sourceRoot/../$pname/hdrgen/yaml_to_classes.py
+    patchShebangs $sourceRoot/../$pname/utils/hdrgen/main.py
+    chmod +x $sourceRoot/../$pname/utils/hdrgen/main.py
   '';
 
   prePatch = ''
